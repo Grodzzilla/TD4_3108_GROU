@@ -1,0 +1,125 @@
+TD 4 M3108 Métrologie Active ( IPERF / TC)
+===
+GROU Alexandre 
+==
+*Ce TD a pour objet de faire des mesures de bandes passantes sur le réseau au travers de l’utilitaireiperf.
+On se servira de NETEM qui est inclu dans le kernel LINUX afin de simuler des problèmes surle réseau ( délais, pertes, duplications).
+On travaillera sur une VM Debian et on utilisera les NetworkName Space afin de créer deux cartes réseaux ethernet VETH jumelées.
+Vous aurez donc deux devicesethernet virtuels (veth-server veth-client ) avec deux adresses IP ( 10.12.0.1 10.12.0.2) entre lesquellesvous effectuerez des tests de performances avec iperf en faisant varier à tour de rôle les délais, les perteset les duplications de paquets sur ce réseau interne à la machine.
+A partir de ces résultats vous allergrapher la bande passante sous CALC. Ces trois graphes sont à remettre à la fin du TD sur l’ENT del’IUT.
+Vous donnerez aussi vos conclusions ou remarques*
+
+## 1--Installation de l’environnement de test
+1. installer iperf à l’aide de apt-get. Réaliser quelques tests sur la même machine afin de comprendrecomment iperf fonctionne. voir http://fr.wikipedia.org/wiki/Iperf.Testez les quelques exemples proposés.
+~~~
+test@214-14:~/Musique$ 
+test@214-14:~/Musique$ iperf -c 10.12.0.1
+------------------------------------------------------------
+Client connecting to 10.12.0.1, TCP port 5001
+TCP window size: 85.0 KByte (default)
+------------------------------------------------------------
+[  3] local 10.12.0.2 port 41994 connected with 10.12.0.1 port 5001
+[ ID] Interval       Transfer     Bandwidth
+[  3]  0.0-10.0 sec   276 MBytes   230 Mbits/sec
+test@214-14:~/Musique$ 
+~~~
+3. Le script suivant simule.sh va permettre de créer un Network Name Space. ( sourcehttp://www.pocketnix.org/posts/Simulating%20latency%20under%20Linux ).
+
+~~~
+test@214-14:~/Musique$ sudo bash scripttd4 10.12.0.1 10.12.0.2
+No command specified, using /bin/sh
+# ip a
+1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+12: veth-server@if11: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether 3a:a8:c2:5c:77:b9 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 10.12.0.1/24 scope global veth-server
+       valid_lft forever preferred_lft forever
+    inet6 fe80::38a8:c2ff:fe5c:77b9/64 scope link 
+       valid_lft forever preferred_lft forever
+~~~
+       
+## 2  Réalisation des graphes "xy"
+
+1. Vous lancerez le serveur iperf via :./simul.sh  10.12.0.1 10.12.0.2'iperf  -B 10.12.0.1 -s'
+~~~
+test@214-14:~/Musique$ sudo bash scripttd4 10.12.0.1 10.12.0.2 'iperf  -B 10.12.0.1 -s'
+------------------------------------------------------------
+Server listening on TCP port 5001
+Binding to local address 10.12.0.1
+TCP window size: 85.3 KByte (default)
+------------------------------------------------------------
+~~~
+2. Vous lancerez le test ensuite en vous "bindant" sur l’IP du device veth client.
+~~~
+test@214-14:~/Musique$ sudo bash scriptNNS 10.12.0.1 10.12.0.2  'iperf -B 10.12.0.1 -s'
+------------------------------------------------------------
+Server listening on TCP port 5001
+Binding to local address 10.12.0.1
+TCP window size: 85.3 KByte (default)
+------------------------------------------------------------
+[  4] local 10.12.0.1 port 5001 connected with 10.12.0.2 port 41994
+[ ID] Interval       Transfer     Bandwidth
+[  4]  0.0-10.0 sec   276 MBytes   230 Mbits/sec
+~~~  
+
+3. Le script suivant vous permettra de dégrader les conditions du réseau afin de réaliser vos tests.
+~~~
+sudo bash scriptMAL delay 100
+ajout d'un delais de 100ms 
+qdisc noqueue 0: dev lo root refcnt 2 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc pfifo_fast 0: dev eno1 root refcnt 2 bands 3 priomap  1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1
+...
+...
+~~~
+Je ré-écoute sur le client
+~~~
+test@214-14:~/Musique$ iperf -c 10.12.0.1
+------------------------------------------------------------
+Client connecting to 10.12.0.1, TCP port 5001
+TCP window size: 85.0 KByte (default)
+------------------------------------------------------------
+[  3] local 10.12.0.2 port 42018 connected with 10.12.0.1 port 5001
+[ ID] Interval       Transfer     Bandwidth
+[  3]  0.0-10.0 sec   128 MBytes   108 Mbits/sec
+test@214-14:~/Musique$ 
+
+~~~
+Nous avons bien une perte de  230 Mbits/sec à 108 Mbits/sec
+### 3 Exemples et Graphes (TCP base)
+
+
+1-Graphe du débit Mbits/s en fonction du Delay
+
+   Le débit est réduit ce qui est totalement logique si du delay est présent car elle prend plus de temps pour être transmis.
+
+       
+![](https://i.imgur.com/Zp7Lpjz.png)
+
+  2-Graphe du débit Mbits/s en fonction des pertes en % 
+  
+ Vu que qu'il y a des pertes, le paquet veut réparer les paquets. Sauf que cela réduit le débit énormement.
+
+![](https://i.imgur.com/oeNZJsM.png)
+
+  3-Graphe du débit Mbits/s en fonction du duplicate en %
+
+![](https://i.imgur.com/71nG9Fe.png)
+
+
+
+### 4 Exemples et Graphes (UDP)
+     
+ 1-En UDP le delay ne change la bande passante 
+       
+       
+2-Graphe du débit Mbits/s en fonction des pertes en %
+ 
+![](https://i.imgur.com/b3IeuBJ.png)
+   
+       
+       
+       
+       
